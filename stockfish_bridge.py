@@ -126,7 +126,7 @@ async def analyze_fen(
     fen: str,
     human_move_uci: str,
     depth: int = 15,
-    engine_path: str = "stockfish",
+    engine_path: str = r"stockfish_bin\stockfish\stockfish-windows-x86-64-avx2.exe",
 ) -> Dict[str, float]:
     """Calculate engine recommendation and delta for a board state.
 
@@ -139,7 +139,7 @@ async def analyze_fen(
     depth: int, optional
         Search depth for Stockfish. Defaults to ``15``.
     engine_path: str, optional
-        Path to the Stockfish binary. Defaults to ``"stockfish"``.
+        Path to the Stockfish binary.
 
     Returns
     -------
@@ -155,11 +155,16 @@ async def analyze_fen(
     async with StockfishEngine(path=engine_path, depth=depth) as engine:
         best_move, best_score = await engine.evaluate_position(fen)
         human_score = await engine.evaluate_move(fen, human_move_uci)
-        delta = best_score - human_score
+        
+        # The engine's score after a move is evaluated from the opponent's perspective.
+        # We invert it to properly align it with the perspective of the player making the move.
+        actual_human_score = -human_score
+        delta = best_score - actual_human_score
+        
         return {
             "engine_best_move": best_move,
             "engine_best_score": best_score,
-            "human_move_score": human_score,
+            "human_move_score": actual_human_score,
             "delta": delta,
         }
 
@@ -168,7 +173,7 @@ def analyze_fen_sync(
     fen: str,
     human_move_uci: str,
     depth: int = 15,
-    engine_path: str = "stockfish",
+    engine_path: str = r"stockfish_bin\stockfish\stockfish-windows-x86-64-avx2.exe",
 ) -> Dict[str, float]:
     """Synchronous wrapper around :func:`analyze_fen` for convenience.
 

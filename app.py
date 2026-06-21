@@ -3,6 +3,7 @@ import chess
 import chess.pgn
 import chess.svg
 import os
+from stockfish_bridge import analyze_fen_sync
 
 # Configure the Streamlit page layout
 st.set_page_config(page_title="Chess Blunder Analyzer", page_icon="♟️", layout="wide")
@@ -51,6 +52,11 @@ st.sidebar.write(f"**Black:** {game.headers.get('Black', 'Unknown')}")
 st.sidebar.write(f"**Result:** {game.headers.get('Result', '?')}")
 st.sidebar.write(f"**Date:** {game.headers.get('Date', '?')}")
 
+st.sidebar.write("---")
+st.sidebar.header("Engine Analysis")
+auto_analyze = st.sidebar.checkbox("Auto-Analyze Moves", value=False)
+depth_setting = st.sidebar.slider("Search Depth", 5, 20, 10, help="Higher depth is more accurate but slower.")
+
 # --------------------------
 # Main Panel UI
 # --------------------------
@@ -68,11 +74,51 @@ for i in range(ply):
 # Grab the last move to highlight it on the board
 lastmove = moves[ply-1] if ply > 0 else None
 
+# ---- Engine Analysis & SVG Overlays ----
+arrows = []
+fill_squares = {}
+
+if ply > 0 and auto_analyze:
+    # We need the position *before* the move was played
+    board.pop()
+    fen_before = board.fen()
+    played_move = lastmove.uci()
+    board.push(lastmove)
+    
+    with st.spinner("Analyzing move..."):
+        try:
+            res = analyze_fen_sync(fen_before, played_move, depth=depth_setting)
+            delta = res["delta"]
+            best_move_uci = res["engine_best_move"]
+            
+            st.sidebar.write(f"**Engine Eval:** {res['engine_best_score']:.2f}")
+            st.sidebar.write(f"**Played Move Eval:** {res['human_move_score']:.2f}")
+            st.sidebar.write(f"**Eval Drop (Delta):** {delta:.2f}")
+            
+            # If delta > 1.5, classify as a blunder
+            if delta > 1.5:
+                st.sidebar.error(f"🚨 BLUNDER DETECTED! Delta: {delta:.2f}")
+                
+                # Plot arrows: Red for played, Green for best
+                best_move = chess.Move.from_uci(best_move_uci)
+                arrows.append(chess.svg.Arrow(lastmove.from_square, lastmove.to_square, color="red"))
+                arrows.append(chess.svg.Arrow(best_move.from_square, best_move.to_square, color="green"))
+                
+                # Threat Heatmap: Highlight the destination square in soft red
+                fill_squares[lastmove.to_square] = "#ffcccc"
+            else:
+                st.sidebar.success("Good move!")
+        except Exception as e:
+            st.sidebar.error("Stockfish engine not found or error occurred.")
+            st.sidebar.caption(str(e))
+
 # Generate the SVG image of the board
 board_svg = chess.svg.board(
     board=board,
     size=450,
     lastmove=lastmove,
+    arrows=arrows,
+    fill=fill_squares
 )
 
 # Render the SVG safely inside Streamlit
@@ -89,6 +135,3 @@ if ply > 0:
 
 # Output the FEN
 st.code(f"FEN: {board.fen()}")
-
-st.markdown("---")
-st.info("💡 **Pro Tip**: You can expand this app later by importing `analyze_fen_sync` from `stockfish_bridge.py` and feeding the FEN in to plot the engine evaluation directly alongside the board!")

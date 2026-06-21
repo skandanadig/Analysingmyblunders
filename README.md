@@ -9,7 +9,7 @@
 [![Stockfish](https://img.shields.io/badge/Engine-Stockfish-lightgrey.svg)](https://stockfishchess.org/)
 
 </div>
-
+Link for Blunder analyser https://analysingmyblunders-ms2wyqsemhxgtcmkwrsxkq.streamlit.app/ !
 ---
 
 ## 📖 Overview

@@ -1,6 +1,18 @@
 import asyncio
 import subprocess
+import platform
+import os
 from typing import Tuple, Dict, Optional
+
+def get_default_engine_path() -> str:
+    """Returns the appropriate Stockfish path depending on the OS."""
+    if platform.system() == "Windows":
+        return r"stockfish_bin\stockfish\stockfish-windows-x86-64-avx2.exe"
+    else:
+        # On Linux/Streamlit Cloud, use the system-level binary installed via packages.txt
+        return "stockfish"
+
+DEFAULT_ENGINE_PATH = get_default_engine_path()
 
 
 class StockfishEngine:
@@ -9,13 +21,12 @@ class StockfishEngine:
     Parameters
     ----------
     path: str
-        Path to the Stockfish binary (must be executable). Defaults to ``"stockfish"``
-        which works if Stockfish is on the system PATH.
+        Path to the Stockfish binary (must be executable).
     depth: int
         Search depth for the engine. Adjust as needed; deeper searches are slower.
     """
 
-    def __init__(self, path: str = "stockfish", depth: int = 15):
+    def __init__(self, path: str = DEFAULT_ENGINE_PATH, depth: int = 15):
         self.path = path
         self.depth = depth
         self.process: Optional[asyncio.subprocess.Process] = None
@@ -126,7 +137,7 @@ async def analyze_fen(
     fen: str,
     human_move_uci: str,
     depth: int = 15,
-    engine_path: str = r"stockfish_bin\stockfish\stockfish-windows-x86-64-avx2.exe",
+    engine_path: str = DEFAULT_ENGINE_PATH,
 ) -> Dict[str, float]:
     """Calculate engine recommendation and delta for a board state.
 
@@ -173,7 +184,7 @@ def analyze_fen_sync(
     fen: str,
     human_move_uci: str,
     depth: int = 15,
-    engine_path: str = r"stockfish_bin\stockfish\stockfish-windows-x86-64-avx2.exe",
+    engine_path: str = DEFAULT_ENGINE_PATH,
 ) -> Dict[str, float]:
     """Synchronous wrapper around :func:`analyze_fen` for convenience.
 

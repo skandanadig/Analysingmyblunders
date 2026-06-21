@@ -82,7 +82,7 @@ if 'selected_game_idx' not in st.session_state:
 
 # --- CACHED FUNCTIONS ---
 @st.cache_data
-def load_games(filename):
+def load_games(filename, file_mtime=None):
     games = []
     if not os.path.exists(filename): return games
     with open(filename, "r", encoding="utf-8") as f:
@@ -150,7 +150,8 @@ def evaluate_full_game(_game, depth):
             
     return eval_history, blunders, None
 
-games = load_games(PGN_FILENAME)
+file_mtime = os.path.getmtime(PGN_FILENAME) if os.path.exists(PGN_FILENAME) else 0
+games = load_games(PGN_FILENAME, file_mtime)
 if not games:
     st.warning(f"Could not find `{PGN_FILENAME}`.")
     st.stop()

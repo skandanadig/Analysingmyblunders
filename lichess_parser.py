@@ -7,7 +7,7 @@ import os
 LICHESS_TOKEN = os.environ.get("LICHESS_API_TOKEN")
 USERNAME = "BostonBLRBoy"  # Example username (Magnus Carlsen on Lichess)
 PGN_FILENAME = f"{USERNAME}_games.pgn"
-MAX_GAMES = 5  # Limit to 5 games for demonstration
+MAX_GAMES = 100# Limit to 5 games for demonstration
 
 def download_games(username, filename, max_games=10):
     """Downloads game history for a user from Lichess as a raw PGN file."""

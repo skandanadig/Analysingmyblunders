@@ -10,6 +10,13 @@ def get_default_engine_path() -> str:
         return r"stockfish_bin\stockfish\stockfish-windows-x86-64-avx2.exe"
     else:
         # On Linux/Streamlit Cloud, use the system-level binary installed via packages.txt
+        import shutil
+        if shutil.which("stockfish"):
+            return "stockfish"
+        if os.path.exists("/usr/games/stockfish"):
+            return "/usr/games/stockfish"
+        if os.path.exists("/usr/bin/stockfish"):
+            return "/usr/bin/stockfish"
         return "stockfish"
 
 DEFAULT_ENGINE_PATH = get_default_engine_path()

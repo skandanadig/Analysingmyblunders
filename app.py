@@ -104,45 +104,51 @@ def evaluate_full_game(_game, depth):
     try:
         res = analyze_fen_sync(board.fen(), moves[0].uci() if moves else "0000", depth=depth)
         eval_history.append(res['engine_best_score'])
-    except Exception:
-        # Stockfish not found or error
-        return [0]*(len(moves)+1), []
+    except Exception as e:
+        import traceback
+        err_str = f"Exception: {e}\nTraceback:\n{traceback.format_exc()}"
+        return [0]*(len(moves)+1), [], err_str
         
     for i, move in enumerate(moves):
         fen_before = board.fen()
         played_move_uci = move.uci()
         
-        res = analyze_fen_sync(fen_before, played_move_uci, depth=depth)
-        delta = res['delta']
-        
-        # Standardize score to White's perspective
-        multiplier = 1 if board.turn == chess.WHITE else -1
-        score_for_white = res['human_move_score'] * multiplier
-        eval_history.append(score_for_white)
-        
-        if delta > 1.5:
-            # Parse node to extract comments for the clock
-            node = _game
-            for _ in range(i+1):
-                if not node.variations: break
-                node = node.variations[0]
+        try:
+            res = analyze_fen_sync(fen_before, played_move_uci, depth=depth)
+            delta = res['delta']
             
-            clock_secs = parse_clock(node.comment)
-            archetype = determine_archetype(board, played_move_uci, res['engine_best_move'])
+            # Standardize score to White's perspective
+            multiplier = 1 if board.turn == chess.WHITE else -1
+            score_for_white = res['human_move_score'] * multiplier
+            eval_history.append(score_for_white)
             
-            blunders.append({
-                "ply": i + 1,
-                "delta": delta,
-                "best_move_uci": res['engine_best_move'],
-                "played_move_uci": played_move_uci,
-                "turn": "White" if board.turn == chess.WHITE else "Black",
-                "clock_seconds": clock_secs,
-                "archetype": archetype
-            })
+            if delta > 1.5:
+                # Parse node to extract comments for the clock
+                node = _game
+                for _ in range(i+1):
+                    if not node.variations: break
+                    node = node.variations[0]
+                
+                clock_secs = parse_clock(node.comment)
+                archetype = determine_archetype(board, played_move_uci, res['engine_best_move'])
+                
+                blunders.append({
+                    "ply": i + 1,
+                    "delta": delta,
+                    "best_move_uci": res['engine_best_move'],
+                    "played_move_uci": played_move_uci,
+                    "turn": "White" if board.turn == chess.WHITE else "Black",
+                    "clock_seconds": clock_secs,
+                    "archetype": archetype
+                })
+                
+            board.push(move)
+        except Exception as e:
+            import traceback
+            err_str = f"Exception on ply {i}: {e}\nTraceback:\n{traceback.format_exc()}"
+            return eval_history + [0]*(len(moves)-i), blunders, err_str
             
-        board.push(move)
-        
-    return eval_history, blunders
+    return eval_history, blunders, None
 
 games = load_games(PGN_FILENAME)
 if not games:
@@ -176,7 +182,10 @@ depth_setting = st.sidebar.slider("Search Depth", 5, 20, 10, help="Higher depth 
 
 # --- FULL GAME ANALYSIS ---
 with st.spinner("Analyzing full match... (This takes a few seconds)"):
-    eval_history, blunders = evaluate_full_game(game, depth_setting)
+    eval_history, blunders, engine_error = evaluate_full_game(game, depth_setting)
+
+if engine_error:
+    st.error(f"🚨 **Engine Error Detected:**\n```\n{engine_error}\n```")
 
 # --- BLUNDER TIMELINE SIDEBAR ---
 if blunders:
@@ -230,7 +239,7 @@ with col2:
     st.markdown("### Momentum & Context")
     
     # 1. Momentum Chart
-    if eval_history and len(eval_history) > 1:
+    if eval_history and len(eval_history) > 1 and not engine_error:
         df = pd.DataFrame({
             "Ply": range(len(eval_history)),
             "Advantage (White)": eval_history
@@ -239,8 +248,8 @@ with col2:
         fig.add_vline(x=ply, line_dash="dash", line_color="red", annotation_text="Current Ply")
         fig.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Evaluation history unavailable. Make sure Stockfish is installed.")
+    elif not engine_error:
+        st.info("Evaluation history unavailable.")
         
     # 2. Contextual Flags
     st.markdown("#### Diagnostic Flags")

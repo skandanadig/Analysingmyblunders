@@ -3,6 +3,7 @@ import chess
 import chess.pgn
 import chess.svg
 import os
+import re
 import pandas as pd
 import plotly.express as px
 from stockfish_bridge import analyze_fen_sync
@@ -14,6 +15,64 @@ st.title("♟️ Chess Blunder Analyzer")
 st.markdown("A professional Lichess-style analysis dashboard.")
 
 PGN_FILENAME = "BostonBLRBoy_games.pgn"
+
+# --- HELPER FUNCTIONS ---
+def parse_clock(comment):
+    """Extracts seconds from a Lichess PGN clock comment like [%clk 0:02:14]"""
+    match = re.search(r'\[%clk (\d+):(\d+):(\d+)\]', comment)
+    if match:
+        h, m, s = int(match.group(1)), int(match.group(2)), int(match.group(3))
+        return h * 3600 + m * 60 + s
+    return None
+
+def get_time_pressure_msg(seconds):
+    """Formats the remaining seconds into a color-coded time pressure warning"""
+    if seconds is None:
+        return "Not recorded in PGN."
+    mins, secs = divmod(seconds, 60)
+    time_str = f"{mins}:{secs:02d}"
+    if seconds < 30:
+        return f"{time_str} — 🛑 **Extreme Time Pressure**"
+    elif seconds < 60:
+        return f"{time_str} — ⚠️ **Heavy Time Pressure**"
+    elif seconds < 180:
+        return f"{time_str} — ⏱️ **Moderate Time Pressure**"
+    else:
+        return f"{time_str} — ⏳ **Plenty of Time**"
+
+def determine_archetype(board_before, played_move_uci, best_move_uci):
+    """Analyzes the board state to dynamically classify the blunder archetype"""
+    try:
+        played = chess.Move.from_uci(played_move_uci)
+        best = chess.Move.from_uci(best_move_uci)
+    except:
+        return "[Unknown Error]"
+        
+    tags = []
+    
+    # Did the engine want us to capture, but we didn't?
+    if board_before.is_capture(best) and not board_before.is_capture(played):
+        tags.append("[Missed Capture]")
+        
+    # Did the engine want us to give check?
+    if board_before.gives_check(best) and not board_before.gives_check(played):
+        tags.append("[Missed Tactic / Missed Check]")
+        
+    # Did we move a piece to a heavily attacked square?
+    piece = board_before.piece_at(played.from_square)
+    if piece:
+        attackers = board_before.attackers(not board_before.turn, played.to_square)
+        if attackers:
+            tags.append("[Moved into Attack / Hanging Piece]")
+            
+    # Were we in check and played a bad evasion?
+    if board_before.is_check():
+        tags.append("[Poor Check Evasion]")
+        
+    if not tags:
+        tags.append("[Positional / Tactical Overlook]")
+        
+    return " | ".join(tags)
 
 # --- STATE MANAGEMENT ---
 if 'ply' not in st.session_state:
@@ -62,11 +121,14 @@ def evaluate_full_game(_game, depth):
         eval_history.append(score_for_white)
         
         if delta > 1.5:
-            # Parse clock if available
+            # Parse node to extract comments for the clock
             node = _game
             for _ in range(i+1):
                 if not node.variations: break
                 node = node.variations[0]
+            
+            clock_secs = parse_clock(node.comment)
+            archetype = determine_archetype(board, played_move_uci, res['engine_best_move'])
             
             blunders.append({
                 "ply": i + 1,
@@ -74,7 +136,8 @@ def evaluate_full_game(_game, depth):
                 "best_move_uci": res['engine_best_move'],
                 "played_move_uci": played_move_uci,
                 "turn": "White" if board.turn == chess.WHITE else "Black",
-                "comment": node.comment
+                "clock_seconds": clock_secs,
+                "archetype": archetype
             })
             
         board.push(move)
@@ -183,15 +246,13 @@ with col2:
     st.markdown("#### Diagnostic Flags")
     if current_blunder:
         st.error(f"🚨 **Heavy Tactical Blunder!** (Eval Drop: {current_blunder['delta']:.2f})")
-        st.warning("**Archetype:** Likely [Hanging Piece] or [Missed Tactic]")
+        
+        # Archetype tagging
+        st.warning(f"**Archetype:** {current_blunder['archetype']}")
         
         # Time pressure
-        comment = current_blunder["comment"]
-        if "[%clk" in comment:
-            st.info(f"🕰️ **Clock Info:** {comment}")
-            # Could parse "0:00:14" out, but raw is fine for now
-        else:
-            st.info("🕰️ **Clock Info:** Not recorded in PGN.")
+        tp_msg = get_time_pressure_msg(current_blunder['clock_seconds'])
+        st.info(f"🕰️ **Clock Info:** {tp_msg}")
             
         st.markdown(f"**Engine Recommended:** `{current_blunder['best_move_uci']}`")
     else:

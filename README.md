@@ -8,8 +8,10 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat&logo=Streamlit&logoColor=white)](https://streamlit.io/)
 [![Stockfish](https://img.shields.io/badge/Engine-Stockfish-lightgrey.svg)](https://stockfishchess.org/)
 
+[🚀 **View Live Dashboard**](https://analysingmyblunders-ms2wyqsemhxgtcmkwrsxkq.streamlit.app/)
+
 </div>
-Link for Blunder analyser https://analysingmyblunders-ms2wyqsemhxgtcmkwrsxkq.streamlit.app/ !
+
 ---
 
 ## 📖 Overview
@@ -25,10 +27,11 @@ It accomplishes this through three main pillars:
 
 ## 🎨 The Streamlit Dashboard (`app.py`)
 
-The crown jewel of this repository is the interactive Match Replay dashboard. Built on `Streamlit` and `chess.svg`, it provides a Lichess-grade review experience.
+The crown jewel of this repository is the interactive Match Replay dashboard. Built on `Streamlit` and `chess.svg`, it provides a Lichess-grade review experience directly in your browser.
 
-### ✨ Features
-- **Plotly Momentum Charts:** A dynamic line graph tracking White's evaluation advantage over the course of the match, complete with an interactive tracking line synced to your position.
+### ✨ Key Features
+- **Player Perspective Toggle:** Analyze your blunders from White or Black's perspective! The board and momentum chart flip intelligently to match your POV.
+- **Plotly Momentum Charts:** A dynamic line graph tracking the evaluation advantage over the course of the match, complete with an interactive tracking line synced to your position.
 - **SVG Blunder Overlays:** Visual heatmaps and arrows drawn directly onto the chess board.
   - 🔴 **Red Arrow:** The blunder you played.
   - 🟢 **Green Arrow:** The optimal engine recommendation.
@@ -62,35 +65,38 @@ graph TD
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Getting Started Locally
 
 ### Prerequisites
 1. **Python 3.11+**
-2. **Stockfish Engine:** Download the binary from [Stockfish's official site](https://stockfishchess.org/download/) and ensure it is accessible in your system `PATH`.
-3. Install dependencies:
+2. Install the required Python dependencies:
    ```bash
-   pip install torch python-chess berserk streamlit pandas plotly
+   pip install -r requirements.txt
    ```
+*(Note: If you run the app locally on Windows, the Stockfish binary has already been included in this repo. If you run it on Linux, ensure `stockfish` is installed via your package manager).*
 
 ### Running the Project
 
-**1. Fetch Games:**  
-Edit `lichess_parser.py` with your username and run it to pull your latest games into a `.pgn` file.
+**1. Fetch Your Games:**  
+Edit `lichess_parser.py` with your Lichess username and run it to pull your latest 100 games into a `.pgn` file.
 ```bash
 python lichess_parser.py
 ```
 
-**2. Test the Engine Bridge:**  
-Verify Stockfish is correctly hooked up and computing Centipawn deltas.
-```bash
-python stockfish_bridge.py
-```
-
-**3. Launch the Dashboard:**  
+**2. Launch the Dashboard:**  
 Open the beautiful UI in your web browser.
 ```bash
 streamlit run app.py
 ```
+
+---
+
+## ☁️ Deployment
+
+This project is fully configured for easy deployment on **Streamlit Community Cloud**!
+1. The `requirements.txt` handles the Python libraries.
+2. The `packages.txt` instructs the Debian cloud server to install the system-level `stockfish` engine.
+3. The `stockfish_bridge.py` script automatically adapts its engine path based on the operating system.
 
 ---
 

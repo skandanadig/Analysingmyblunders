@@ -180,6 +180,7 @@ max_ply = len(moves)
 st.sidebar.write("---")
 st.sidebar.header("Engine Settings")
 depth_setting = st.sidebar.slider("Search Depth", 5, 20, 10, help="Higher depth takes longer to load.")
+perspective = st.sidebar.radio("Analysis Perspective", ["White", "Black"])
 
 # --- FULL GAME ANALYSIS ---
 with st.spinner("Analyzing full match... (This takes a few seconds)"):
@@ -190,15 +191,21 @@ if engine_error:
 
 # --- BLUNDER TIMELINE SIDEBAR ---
 if blunders:
-    st.sidebar.write("---")
-    st.sidebar.subheader("🚨 Blunder Timeline")
-    for b in blunders:
-        move_num = (b["ply"] - 1) // 2 + 1
-        btn_label = f"Move {move_num} ({b['turn']}) - Drop: {b['delta']:.1f}"
-        if st.sidebar.button(btn_label, key=f"blunder_{b['ply']}"):
-            st.session_state.ply = b['ply']
+    filtered_blunders = [b for b in blunders if b["turn"] == perspective]
+    if filtered_blunders:
+        st.sidebar.write("---")
+        st.sidebar.subheader(f"🚨 {perspective}'s Blunders")
+        for b in filtered_blunders:
+            move_num = (b["ply"] - 1) // 2 + 1
+            btn_label = f"Move {move_num} - Drop: {b['delta']:.1f}"
+            if st.sidebar.button(btn_label, key=f"blunder_{b['ply']}"):
+                st.session_state.ply = b['ply']
 
 # --- MAIN LAYOUT ---
+white_player = game.headers.get("White", "Unknown")
+black_player = game.headers.get("Black", "Unknown")
+st.markdown(f"## ⚪ {white_player} vs ⚫ {black_player}")
+
 col1, col2 = st.columns([1.2, 2])
 
 with col1:
@@ -225,12 +232,13 @@ with col1:
         arrows.append(chess.svg.Arrow(best_m.from_square, best_m.to_square, color="green"))
         fill_squares[played_m.to_square] = "#ffcccc"
         
-    board_svg = chess.svg.board(board=board, size=400, lastmove=lastmove, arrows=arrows, fill=fill_squares)
+    orientation = chess.BLACK if perspective == "Black" else chess.WHITE
+    board_svg = chess.svg.board(board=board, size=400, lastmove=lastmove, arrows=arrows, fill=fill_squares, orientation=orientation)
     st.markdown(f'<div style="display: flex; justify-content: center;">{board_svg}</div>', unsafe_allow_html=True)
     
     # Jump to Next Blunder
     if blunders:
-        next_blunders = [b["ply"] for b in blunders if b["ply"] > ply]
+        next_blunders = [b["ply"] for b in blunders if b["ply"] > ply and b["turn"] == perspective]
         if next_blunders:
             if st.button("⏩ Jump to Next Blunder", use_container_width=True):
                 st.session_state.ply = next_blunders[0]
@@ -243,9 +251,9 @@ with col2:
     if eval_history and len(eval_history) > 1 and not engine_error:
         df = pd.DataFrame({
             "Ply": range(len(eval_history)),
-            "Advantage (White)": eval_history
+            "Advantage": [-x if perspective == "Black" else x for x in eval_history]
         })
-        fig = px.line(df, x="Ply", y="Advantage (White)", title="Game Evaluation Map (Centipawns)")
+        fig = px.line(df, x="Ply", y="Advantage", title=f"Game Evaluation Map ({perspective} Advantage)")
         fig.add_vline(x=ply, line_dash="dash", line_color="red", annotation_text="Current Ply")
         fig.update_layout(height=300, margin=dict(l=0, r=0, t=40, b=0))
         st.plotly_chart(fig, use_container_width=True)
